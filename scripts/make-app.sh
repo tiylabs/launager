@@ -2,15 +2,29 @@
 # Builds Birth.app into dist/ from the SPM executable.
 #   ./scripts/make-app.sh            release build, current architecture
 #   ./scripts/make-app.sh universal  release build, arm64 + x86_64
+#   ARCH=arm64 ./scripts/make-app.sh build an explicit architecture (CI)
+#   ./scripts/make-app.sh x86_64     equivalent explicit-architecture form
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION="${VERSION:-0.2.3}"
 APP=dist/Birth.app
 BUILD_ARGS=(-c release)
-if [[ "${1:-}" == "universal" ]]; then
-    BUILD_ARGS+=(--arch arm64 --arch x86_64)
-fi
+TARGET_ARCH="${1:-${ARCH:-}}"
+case "$TARGET_ARCH" in
+    "")
+        ;;
+    universal)
+        BUILD_ARGS+=(--arch arm64 --arch x86_64)
+        ;;
+    arm64|x86_64)
+        BUILD_ARGS+=(--arch "$TARGET_ARCH")
+        ;;
+    *)
+        echo "Unsupported architecture: $TARGET_ARCH (expected arm64, x86_64, or universal)" >&2
+        exit 64
+        ;;
+esac
 
 echo "==> swift build ${BUILD_ARGS[*]}"
 swift build "${BUILD_ARGS[@]}"

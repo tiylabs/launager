@@ -1,11 +1,11 @@
 # Birth
 
-[![CI](https://img.shields.io/github/actions/workflow/status/iAmCorey/birth/ci.yml?style=flat-square&label=CI)](https://github.com/iAmCorey/birth/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/iAmCorey/birth?style=flat-square)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/iAmCorey/birth?style=flat-square)](https://github.com/iAmCorey/birth/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-007AFF?style=flat-square)](https://github.com/iAmCorey/birth/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/iAmCorey/birth/total?style=flat-square)](https://github.com/iAmCorey/birth/releases)
-[![Stars](https://img.shields.io/github/stars/iAmCorey/birth?style=flat-square)](https://github.com/iAmCorey/birth/stargazers)
+[![CI](https://img.shields.io/github/actions/workflow/status/tiylabs/launager/ci.yml?style=flat-square&label=CI)](https://github.com/tiylabs/launager/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/tiylabs/launager?style=flat-square)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/tiylabs/launager?style=flat-square)](https://github.com/tiylabs/launager/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-007AFF?style=flat-square)](https://github.com/tiylabs/launager/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/tiylabs/launager/total?style=flat-square)](https://github.com/tiylabs/launager/releases)
+[![Stars](https://img.shields.io/github/stars/tiylabs/launager?style=flat-square)](https://github.com/tiylabs/launager/stargazers)
 
 **一目了然地管理你的电脑启动项。**
 
@@ -61,19 +61,19 @@ macOS 把启动项分散在至少四套机制里：
 
 ## 安装
 
-要求 macOS 14（Sonoma）及以上。目前主要在 macOS 26 上开发与测试；更早版本遇到问题欢迎提 [Issue](https://github.com/iAmCorey/birth/issues)。
+要求 macOS 14（Sonoma）及以上。目前主要在 macOS 26 上开发与测试；更早版本遇到问题欢迎提 [Issue](https://github.com/tiylabs/launager/issues)。
 
 ### 方式一：下载 DMG
 
-从 [Releases](https://github.com/iAmCorey/birth/releases) 下载最新的 `Birth-x.x.x.dmg`，打开后把 Birth 拖进"应用程序"。
+从 [Releases](https://github.com/tiylabs/launager/releases) 下载与 Mac 架构对应的 `Birth_<版本>_<架构>.dmg`，打开后把 Birth 拖进"应用程序"。
 
-Birth 是个人开源项目，未经 Apple 公证。**首次打开**时 macOS 会提示无法验证开发者：前往 系统设置 → 隐私与安全性，在页面底部点击**"仍要打开"**——只需一次。
+标签发布由 GitHub Actions 使用 Apple Developer ID 签名并公证；本地 `make-app.sh` 构建仍使用 ad-hoc 签名，适合开发与测试。
 
 ### 方式二：从源码构建
 
 ```bash
-git clone https://github.com/iAmCorey/birth.git
-cd birth
+git clone https://github.com/tiylabs/launager.git
+cd launager
 ./scripts/make-app.sh
 open dist/Birth.app
 ```
@@ -92,11 +92,13 @@ swift test                    # 单元测试
 - 三个 target：`BirthCore`（扫描/控制/签名，UI 无关）、`BirthUI`（完整应用，可测试）、`Birth`（三行 main 的薄壳）
 - 每次发版前必须跑一遍 `release-check.sh`，任何一步红灯都不发布
 
+推送形如 `v0.2.4` 的标签会触发 `.github/workflows/release.yml`：分别构建 Intel 和 Apple Silicon 版本，导入临时钥匙串中的 Developer ID 证书，以 Hardened Runtime 和时间戳签名，公证并装订 DMG，随后上传 ZIP 与 DMG 到 GitHub Release。仓库需要配置以下 GitHub Actions Secrets：`APPLE_CERTIFICATE`（Base64 编码的 `.p12`）、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_TEAM_ID`、`APPLE_ID` 和 `APPLE_APP_SPECIFIC_PASSWORD`。
+
 ## 说明与限制
 
 - **签名徽章显示的是身份，不是完整性**：Birth 验证证书链锚点（确认"是谁签的"），不做全量内容哈希校验——那是 Gatekeeper 的职责。
 - **"登录项"分类只读**：macOS 未向第三方开放切换这类项目的 API，Birth 提供直达系统设置的跳转。
-- Birth 目前使用临时（ad-hoc）签名，每个构建的签名身份都不同。**升级到新版本后，完全磁盘访问权限与自动化授权需要在系统设置中重新勾选**（把 Birth 的开关先关后开）。同一个版本内授权一次持续有效。
+- 本地开发构建使用临时（ad-hoc）签名；正式标签发布使用固定的 Developer ID 身份，避免因每次签名身份变化而让已授予的权限失效。
 
 ## 卸载
 
@@ -111,11 +113,11 @@ rm -rf ~/Library/Application\ Support/Birth                # 删除操作的备�
 
 ## 反馈
 
-Bug 与建议请提 [GitHub Issues](https://github.com/iAmCorey/birth/issues)。
+Bug 与建议请提 [GitHub Issues](https://github.com/tiylabs/launager/issues)。
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=iAmCorey/birth&type=Date)](https://star-history.com/#iAmCorey/birth&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=tiylabs/launager&type=Date)](https://star-history.com/#tiylabs/launager&Date)
 
 ## 许可证
 
