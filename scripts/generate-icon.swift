@@ -1,5 +1,5 @@
 #!/usr/bin/env swift
-// Renders the Birth app icon (a power glyph rising like a sunrise) to
+// Renders the Launager app icon (a power glyph rising like a sunrise) to
 // AppIcon.iconset PNGs. Run via scripts/make-app.sh; requires macOS.
 import AppKit
 

@@ -1,25 +1,39 @@
 #!/bin/bash
-# Builds Birth.app into dist/ from the SPM executable.
+# Builds Launager.app into dist/ from the SPM executable.
 #   ./scripts/make-app.sh            release build, current architecture
 #   ./scripts/make-app.sh universal  release build, arm64 + x86_64
+#   ARCH=arm64 ./scripts/make-app.sh build an explicit architecture (CI)
+#   ./scripts/make-app.sh x86_64     equivalent explicit-architecture form
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION="${VERSION:-0.2.3}"
-APP=dist/Birth.app
+APP=dist/Launager.app
 BUILD_ARGS=(-c release)
-if [[ "${1:-}" == "universal" ]]; then
-    BUILD_ARGS+=(--arch arm64 --arch x86_64)
-fi
+TARGET_ARCH="${1:-${ARCH:-}}"
+case "$TARGET_ARCH" in
+    "")
+        ;;
+    universal)
+        BUILD_ARGS+=(--arch arm64 --arch x86_64)
+        ;;
+    arm64|x86_64)
+        BUILD_ARGS+=(--arch "$TARGET_ARCH")
+        ;;
+    *)
+        echo "Unsupported architecture: $TARGET_ARCH (expected arm64, x86_64, or universal)" >&2
+        exit 64
+        ;;
+esac
 
 echo "==> swift build ${BUILD_ARGS[*]}"
 swift build "${BUILD_ARGS[@]}"
-BIN_PATH="$(swift build "${BUILD_ARGS[@]}" --show-bin-path)/Birth"
+BIN_PATH="$(swift build "${BUILD_ARGS[@]}" --show-bin-path)/Launager"
 
 echo "==> assembling ${APP}"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN_PATH" "$APP/Contents/MacOS/Birth"
+cp "$BIN_PATH" "$APP/Contents/MacOS/Launager"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -29,13 +43,13 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleDevelopmentRegion</key>
     <string>zh_CN</string>
     <key>CFBundleExecutable</key>
-    <string>Birth</string>
+    <string>Launager</string>
     <key>CFBundleIdentifier</key>
-    <string>dev.birth.Birth</string>
+    <string>ai.tiy.launager</string>
     <key>CFBundleName</key>
-    <string>Birth</string>
+    <string>Launager</string>
     <key>CFBundleDisplayName</key>
-    <string>Birth</string>
+    <string>Launager</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -53,7 +67,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSHumanReadableCopyright</key>
     <string>MIT License</string>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Birth 需要通过“系统事件”来添加和移除登录时打开的 App。</string>
+    <string>Launager 需要通过“系统事件”来添加和移除登录时打开的 App。</string>
 </dict>
 </plist>
 PLIST

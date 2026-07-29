@@ -1,0 +1,186 @@
+name: Build, Sign and Publish Release Assets
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build macOS ${{ matrix.artifact_arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macos-14 only ships Swift 5.10, while this package declares
+          # swift-tools-version 6.0. macos-15 provides Swift 6 and can
+          # cross-compile the Intel release binary below.
+          - os: macos-15
+            arch: x86_64
+            artifact_arch: x86_64
+          - os: macos-26
+            arch: arm64
+            artifact_arch: aarch64
+
+    steps:
+      - name: Resolve release tag
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [ -z "$TAG" ]; then
+            echo "::error::Failed to resolve release tag from github.ref_name"
+            exit 1
+          fi
+
+          VERSION="${TAG#v}"
+          if [ -z "$VERSION" ]; then
+            echo "::error::Failed to resolve version from tag $TAG"
+            exit 1
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,2} ]]; then
+            echo "::error::Tag must start with a numeric Apple bundle version, for example v1.2.3 or 1.2.3. Got: $TAG"
+            exit 1
+          fi
+          BUNDLE_VERSION="${BASH_REMATCH[0]}"
+
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "BUNDLE_VERSION=$BUNDLE_VERSION" >> "$GITHUB_ENV"
+          echo "Resolved release tag: $TAG"
+          echo "Resolved version: $VERSION"
+          echo "Resolved Apple bundle version: $BUNDLE_VERSION"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Build app
+        shell: bash
+        run: |
+          chmod +x scripts/make-app.sh scripts/make-dmg.sh
+          VERSION="$BUNDLE_VERSION" ARCH="${{ matrix.arch }}" ./scripts/make-app.sh
+          test -d "dist/Launager.app"
+          /usr/bin/plutil -lint "dist/Launager.app/Contents/Info.plist"
+          /usr/bin/file "dist/Launager.app/Contents/MacOS/Launager"
+
+      - name: Import Apple signing certificate
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ] || [ -z "$APPLE_CERTIFICATE_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "::error::Missing Apple signing secrets. Required: APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_TEAM_ID."
+            exit 1
+          fi
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/apple-signing-certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/"//g')
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+          IDENTITY_LINE="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep 'Developer ID Application:' | grep -F "($APPLE_TEAM_ID)" | head -n 1 || true)"
+          APPLE_SIGNING_IDENTITY="$(printf '%s\n' "$IDENTITY_LINE" | awk -F '"' '{print $2}')"
+          if [ -z "$APPLE_SIGNING_IDENTITY" ]; then
+            echo "::error::Failed to resolve Developer ID Application signing identity for APPLE_TEAM_ID=$APPLE_TEAM_ID from the imported certificate."
+            exit 1
+          fi
+
+          echo "Resolved Apple signing identity: $APPLE_SIGNING_IDENTITY"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY" >> "$GITHUB_ENV"
+
+      - name: Sign app
+        shell: bash
+        run: |
+          codesign --force \
+            --deep \
+            --options runtime \
+            --timestamp \
+            --sign "$APPLE_SIGNING_IDENTITY" \
+            "dist/Launager.app"
+
+          codesign --verify --deep --strict --verbose=2 "dist/Launager.app"
+          codesign --display --verbose=2 "dist/Launager.app"
+
+      - name: Package, sign and notarize
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "::error::Missing notarization secrets. Required: APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID."
+            exit 1
+          fi
+
+          mkdir -p release-artifacts
+
+          ZIP_ARTIFACT_NAME="Launager_${VERSION}_${{ matrix.artifact_arch }}.zip"
+          ZIP_ARTIFACT_PATH="release-artifacts/$ZIP_ARTIFACT_NAME"
+          ditto -c -k --keepParent "dist/Launager.app" "$ZIP_ARTIFACT_PATH"
+
+          DMG_ARTIFACT_NAME="Launager_${VERSION}_${{ matrix.artifact_arch }}.dmg"
+          DMG_ARTIFACT_PATH="release-artifacts/$DMG_ARTIFACT_NAME"
+          VERSION="$VERSION" ./scripts/make-dmg.sh "$DMG_ARTIFACT_PATH"
+          codesign --force \
+            --timestamp \
+            --sign "$APPLE_SIGNING_IDENTITY" \
+            "$DMG_ARTIFACT_PATH"
+          codesign --verify --verbose=2 "$DMG_ARTIFACT_PATH"
+
+          xcrun notarytool submit "$DMG_ARTIFACT_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$DMG_ARTIFACT_PATH"
+          xcrun stapler validate "$DMG_ARTIFACT_PATH"
+
+          ls -la release-artifacts
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+          files: release-artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Save workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-${{ matrix.artifact_arch }}
+          path: release-artifacts/*
+          retention-days: 30
+
+      - name: Remove temporary signing keychain
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH"
+          fi

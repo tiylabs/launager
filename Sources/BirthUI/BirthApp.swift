@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-public struct BirthApp: App {
+public struct LaunagerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     public init() {}
@@ -15,7 +15,7 @@ public struct BirthApp: App {
         .commands {
             // Custom About panel with the author credit (kooky-style).
             CommandGroup(replacing: .appInfo) {
-                Button("关于 \(BirthInfo.name)") {
+                Button("关于 \(LaunagerInfo.name)") {
                     AboutWindowController.shared.show()
                 }
             }

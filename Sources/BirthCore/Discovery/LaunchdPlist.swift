@@ -1,6 +1,6 @@
 import Foundation
 
-/// The launchd job definition fields Birth cares about, parsed from a job plist.
+/// The launchd job definition fields Launager cares about, parsed from a job plist.
 public struct LaunchdPlist: Hashable, Sendable {
     public var label: String?
     public var program: String?

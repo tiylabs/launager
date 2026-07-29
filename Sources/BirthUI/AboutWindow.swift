@@ -10,31 +10,31 @@ struct AboutView: View {
                 .resizable()
                 .frame(width: 78, height: 78)
                 .padding(.bottom, 12)
-            Text(BirthInfo.name)
+            Text(LaunagerInfo.name)
                 .font(.system(size: 28, weight: .medium))
-            Text("版本 \(BirthInfo.displayVersion)")
+            Text("版本 \(LaunagerInfo.displayVersion)")
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
-            Text(BirthInfo.tagline)
+            Text(LaunagerInfo.tagline)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.top, 12)
-            aboutLink("GitHub ↗", url: BirthInfo.repositoryURL)
+            aboutLink("GitHub ↗", url: LaunagerInfo.repositoryURL)
                 .padding(.top, 14)
             Rectangle()
                 .fill(.quaternary)
                 .frame(width: 32, height: 1)
                 .padding(.vertical, 16)
-            Text("© \(BirthInfo.copyrightYear) \(BirthInfo.name). All rights reserved.")
+            Text("© \(LaunagerInfo.copyrightYear) \(LaunagerInfo.name). All rights reserved.")
                 .font(.system(size: 9, design: .monospaced))
                 .foregroundStyle(.tertiary)
             HStack(spacing: 0) {
                 Text("Built with ❤️ by ")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.tertiary)
-                aboutLink(BirthInfo.author, url: BirthInfo.authorURL, font: .system(size: 9, design: .monospaced))
+                aboutLink(LaunagerInfo.author, url: LaunagerInfo.authorURL, font: .system(size: 9, design: .monospaced))
             }
             .padding(.top, 4)
         }
@@ -80,7 +80,7 @@ final class AboutWindowController: NSWindowController {
         let host = NSHostingController(rootView: AboutView())
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
-        window.title = "关于 \(BirthInfo.name)"
+        window.title = "关于 \(LaunagerInfo.name)"
         window.styleMask = [.titled, .closable]
         // Name/version live in the content, so hide the titlebar text.
         window.titleVisibility = .hidden

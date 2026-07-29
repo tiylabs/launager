@@ -31,10 +31,10 @@ public struct ItemRemover: Sendable {
 
     public static var backupDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Birth/Backups", isDirectory: true)
+            .appendingPathComponent("Library/Application Support/Launager/Backups", isDirectory: true)
     }
 
-    /// Copy the plist into Birth's backup folder before any destructive step.
+    /// Copy the plist into Launager's backup folder before any destructive step.
     @discardableResult
     public func backup(_ item: LaunchItem) throws -> URL? {
         guard let plistURL = item.plistURL else { return nil }
@@ -90,7 +90,7 @@ public struct ItemRemover: Sendable {
             ].joined(separator: "; ")
             let output = try await PrivilegedRunner.runShell(
                 command,
-                prompt: "Birth 想要移除启动项“\(item.displayName)”。"
+                prompt: "Launager 想要移除启动项“\(item.displayName)”。"
             )
             if output.contains("BIRTH_MV_FAILED") {
                 throw RemovalError.notRemovable("无法将 plist 文件移到废纸篓（权限或磁盘错误），未做任何更改。")

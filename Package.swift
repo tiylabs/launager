@@ -2,14 +2,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "birth",
+    name: "Launager",
     defaultLocalization: "en",
     platforms: [
         .macOS(.v14)
     ],
     products: [
         .library(name: "BirthCore", targets: ["BirthCore"]),
-        .executable(name: "Birth", targets: ["Birth"]),
+        .executable(name: "Launager", targets: ["Launager"]),
     ],
     targets: [
         .target(
@@ -22,8 +22,9 @@ let package = Package(
             dependencies: ["BirthCore"]
         ),
         .executableTarget(
-            name: "Birth",
-            dependencies: ["BirthUI"]
+            name: "Launager",
+            dependencies: ["BirthUI"],
+            path: "Sources/Birth"
         ),
         .testTarget(
             name: "BirthCoreTests",

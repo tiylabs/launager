@@ -25,7 +25,7 @@ struct SidebarView: View {
             // Brand header: with Finder-style window titles (title = where
             // you are), this is where the product identity lives.
             HStack {
-                Text(BirthInfo.name)
+                Text(LaunagerInfo.name)
                     .font(.title2.weight(.semibold))
                 Spacer()
             }
