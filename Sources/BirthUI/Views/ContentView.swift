@@ -55,7 +55,7 @@ struct ContentView: View {
                 state.confirmRemoval()
             }
         } message: {
-            Text("该任务会先停止运行，其 plist 文件将移到废纸篓。Birth 会在 ~/Library/Application Support/Birth/Backups 中保留一份备份。")
+            Text("该任务会先停止运行，其 plist 文件将移到废纸篓。Launager 会在 ~/Library/Application Support/Launager/Backups 中保留一份备份。")
         }
     }
 
@@ -93,7 +93,7 @@ struct AdvancedItemsView: View {
                 }
                 Button("暂不", role: .cancel) {}
             } message: {
-                Text("其余分类均已正常刷新，只有“登录项”分类需要该权限才能读取。授权一次即可——之后每次刷新都会静默包含登录项，不再出现本提示。授权后切回 Birth 会自动刷新。")
+                Text("其余分类均已正常刷新，只有“登录项”分类需要该权限才能读取。授权一次即可——之后每次刷新都会静默包含登录项，不再出现本提示。授权后切回 Launager 会自动刷新。")
             }
             .inspector(isPresented: inspectorShown) {
                 if let item = state.selectedItem {

@@ -12,7 +12,7 @@ private struct StateBox {
     private let suite: String
 
     init() {
-        suite = "dev.birth.tests.\(UUID().uuidString)"
+        suite = "ai.tiy.launager.tests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suite)!
         state = AppState(forTesting: defaults)
     }

@@ -66,7 +66,7 @@ public struct LaunchItem: Identifiable, Hashable, Sendable {
         return claimsAppleLabel && signature.kind != .apple
     }
 
-    /// BTM login items are macOS-managed: Birth can neither toggle nor
+    /// BTM login items are macOS-managed: Launager can neither toggle nor
     /// remove them, only point at System Settings. Single source for
     /// every "offer removal?" decision in the UI.
     public var isUserRemovable: Bool {

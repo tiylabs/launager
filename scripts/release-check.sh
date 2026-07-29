@@ -7,7 +7,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP="$PWD/dist/Birth.app"
+APP="$PWD/dist/Launager.app"
 CRASH_DIR="$HOME/Library/Logs/DiagnosticReports"
 
 fail() {
@@ -25,10 +25,10 @@ echo "==> [3/4] smoke launch"
 # Quit any running instance (path-pinned so a stale /Applications copy
 # can't hijack the name).
 osascript -e "tell application \"$APP\" to quit" 2>/dev/null || true
-pkill -x Birth 2>/dev/null || true
+pkill -x Launager 2>/dev/null || true
 sleep 1
 
-crashes_before=$(ls "$CRASH_DIR" 2>/dev/null | grep -c '^Birth-' || true)
+crashes_before=$(ls "$CRASH_DIR" 2>/dev/null | grep -c '^Launager-' || true)
 
 # BIRTH_AUTOTEST=inspector drives the advanced table + inspector path —
 # the route that once crashed on every click. launchctl setenv + open is
@@ -39,15 +39,15 @@ sleep 12
 launchctl unsetenv BIRTH_AUTOTEST
 
 echo "==> [4/4] health checks"
-pid=$(pgrep -x Birth) || fail "进程未存活（启动 12 秒后已退出）"
+pid=$(pgrep -x Launager) || fail "进程未存活（启动 12 秒后已退出）"
 echo "    进程存活 (PID $pid)"
 
 # Main thread must be idle-parked in the event loop, not wedged.
-idle=$(sample Birth 1 -mayDie 2>/dev/null | grep -c mach_msg2_trap || true)
-[ "$idle" -ge 1 ] || fail "主线程未回到事件循环（疑似卡死）— 用 sample Birth 10 诊断"
+idle=$(sample Launager 1 -mayDie 2>/dev/null | grep -c mach_msg2_trap || true)
+[ "$idle" -ge 1 ] || fail "主线程未回到事件循环（疑似卡死）— 用 sample Launager 10 诊断"
 echo "    主线程健康"
 
-crashes_after=$(ls "$CRASH_DIR" 2>/dev/null | grep -c '^Birth-' || true)
+crashes_after=$(ls "$CRASH_DIR" 2>/dev/null | grep -c '^Launager-' || true)
 [ "$crashes_after" -le "$crashes_before" ] || fail "冒烟期间产生了新的崩溃报告（$CRASH_DIR）"
 echo "    零新崩溃"
 
@@ -55,6 +55,6 @@ echo "    零新崩溃"
 # selection, relaunch in normal mode.
 osascript -e "tell application \"$APP\" to quit" 2>/dev/null || true
 sleep 1
-defaults write dev.birth.Birth sidebarSelection -string loginApps 2>/dev/null || true
+defaults write ai.tiy.launager sidebarSelection -string loginApps 2>/dev/null || true
 
-echo "✅ release check passed — dist/Birth.app 可以发布"
+echo "✅ release check passed — dist/Launager.app 可以发布"

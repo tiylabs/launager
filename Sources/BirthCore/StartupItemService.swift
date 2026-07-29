@@ -96,7 +96,7 @@ public struct StartupItemService: Sendable {
             let verb = enabled ? "启用" : "停用"
             let output = try await PrivilegedRunner.runShell(
                 command,
-                prompt: "Birth 想要\(verb)启动项“\(item.displayName)”。"
+                prompt: "Launager 想要\(verb)启动项“\(item.displayName)”。"
             )
             switch LaunchctlClient.parsePrivilegedOutcome(output) {
             case .ok:
