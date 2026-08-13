@@ -6,15 +6,15 @@ struct SidebarView: View {
     var body: some View {
         @Bindable var state = state
         List(selection: $state.selection) {
-            Section("启动应用") {
+            Section(L("sidebar.loginApps")) {
                 // Row reads 全部 inside its group; the window title still
                 // carries the section name (displayTitle = 启动应用).
-                row(.loginApps, overrideTitle: "全部")
+                row(.loginApps, overrideTitle: L("common.all"))
                 if state.count(for: .recentlyRemoved) > 0 {
                     row(.recentlyRemoved)
                 }
             }
-            Section("高级启动项") {
+            Section(L("sidebar.advanced")) {
                 row(.all)
                 ForEach(LaunchItem.Domain.allCases, id: \.self) { domain in
                     row(.domain(domain))
@@ -34,8 +34,8 @@ struct SidebarView: View {
             .padding(.bottom, 4)
         }
         .safeAreaInset(edge: .bottom) {
-            if state.loginItemsError != nil {
-                FullDiskAccessHint()
+            if let error = state.loginItemsError {
+                LoginItemsUnavailableHint(error: error)
                     .padding(10)
             }
         }
@@ -52,23 +52,30 @@ struct SidebarView: View {
     }
 }
 
-/// Always-on breadcrumb for the one permission-gated slice: reachable
-/// even when the user never visits 登录项 or clicks refresh. Kept by
-/// product decision — the in-place guidance covers active discovery,
-/// this covers passive.
-private struct FullDiskAccessHint: View {
+/// Compact breadcrumb for the unavailable BTM slice. Recovery details stay
+/// in the main pane; the sidebar keeps one concise action.
+private struct LoginItemsUnavailableHint: View {
     private var state: AppState { .shared }
+    let error: BTMReader.BTMError
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label("登录项不可用", systemImage: "lock.shield")
+            Label(L("sidebar.fda.title"), systemImage: "lock.shield")
                 .font(.callout.weight(.semibold))
-            Text("授权一次“完全磁盘访问权限”，之后刷新即可静默读取登录项。")
+            Text(error.requiresFullDiskAccess ? L("sidebar.fda.body") : L("sidebar.btm.body"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Button("打开隐私设置") {
-                state.openFullDiskAccessSettings()
+            if error.requiresFullDiskAccess {
+                Button(L("common.openPrivacySettings")) {
+                    state.openFullDiskAccessSettings()
+                }
+                .controlSize(.small)
+            } else {
+                Button(L("sidebar.btm.details")) {
+                    state.selection = .domain(.loginItem)
+                }
+                .controlSize(.small)
             }
-            .controlSize(.small)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)

@@ -29,7 +29,7 @@ public struct LoginItemsClient: Sendable {
         public var errorDescription: String? {
             switch self {
             case .automationDenied:
-                "Launager 未获准控制“系统事件”。请在系统设置 > 隐私与安全性 > 自动化中允许 Launager。"
+                L("error.automationDenied")
             case .scriptFailed(let detail):
                 detail
             }

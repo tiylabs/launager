@@ -2,11 +2,11 @@
 # Packages dist/Launager.app into a drag-to-Applications DMG. The release
 # workflow re-signs and notarizes this artifact before publishing it.
 #   ./scripts/make-app.sh && ./scripts/make-dmg.sh
-#   ./scripts/make-dmg.sh release-artifacts/Launager_0.2.3_arm64.dmg
+#   ./scripts/make-dmg.sh release-artifacts/Launager_0.0.2_arm64.dmg
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="${VERSION:-0.2.3}"
+VERSION="${VERSION:-0.0.2}"
 APP=dist/Launager.app
 if [ "$#" -gt 1 ]; then
     echo "Usage: $0 [output-dmg]" >&2

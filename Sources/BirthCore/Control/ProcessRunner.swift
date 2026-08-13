@@ -15,14 +15,13 @@ public enum ProcessRunner {
         public var errorDescription: String? {
             switch self {
             case .timedOut(let command, let seconds):
-                "\(command) 在 \(Int(seconds)) 秒内未完成，已被强制终止。"
+                L("error.timeout", command, Int(seconds))
             }
         }
     }
 
-    /// Run an external tool and capture its output. The watchdog matters:
-    /// tools like sfltool can hang indefinitely waiting on tccd when the
-    /// app's privacy authorization is stale.
+    /// Run an external tool and capture its output. The watchdog prevents a
+    /// stalled system service or command from pinning a refresh forever.
     public static func run(
         _ executablePath: String,
         _ arguments: [String],

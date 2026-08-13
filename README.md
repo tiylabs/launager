@@ -69,7 +69,7 @@ macOS 把启动项分散在至少四套机制里：
 
 标签发布由 GitHub Actions 使用 Apple Developer ID 签名并公证；本地 `make-app.sh` 构建仍使用 ad-hoc 签名，适合开发与测试。
 
-Launager 使用新的 Bundle ID `ai.tiy.launager`；从 Birth 升级时，macOS 会将它识别为新应用，需要重新授予“自动化”和“完全磁盘访问”权限。旧的备份仍保留在 `~/Library/Application Support/Birth/Backups`。
+Launager 使用新的 Bundle ID `ai.tiy.launager`；从 Birth 升级时，macOS 会将它识别为新应用，需要重新授予“自动化”和“完全磁盘访问”权限。旧版本备份仍保留在 `~/Library/Application Support/Birth/Backups`，新版本使用 `~/Library/Application Support/Launager/Backups`。
 
 ### 方式二：从源码构建
 
@@ -94,7 +94,7 @@ swift test                    # 单元测试
 - 三个 target：`BirthCore`（扫描/控制/签名，UI 无关）、`BirthUI`（完整应用，可测试）、`Launager`（三行 main 的薄壳）
 - 每次发版前必须跑一遍 `release-check.sh`，任何一步红灯都不发布
 
-推送形如 `v0.2.4` 的标签会触发 `.github/workflows/release.yml`：分别构建 Intel 和 Apple Silicon 版本，导入临时钥匙串中的 Developer ID 证书，以 Hardened Runtime 和时间戳签名，公证并装订 DMG，随后上传 ZIP 与 DMG 到 GitHub Release。仓库需要配置以下 GitHub Actions Secrets：`APPLE_CERTIFICATE`（Base64 编码的 `.p12`）、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_TEAM_ID`、`APPLE_ID` 和 `APPLE_APP_SPECIFIC_PASSWORD`。
+推送形如 `v0.0.2` 的标签会触发 `.github/workflows/release.yml`：分别构建 Intel 和 Apple Silicon 版本，导入临时钥匙串中的 Developer ID 证书，以 Hardened Runtime 和时间戳签名，公证并装订 DMG，随后上传 ZIP 与 DMG 到 GitHub Release。仓库需要配置以下 GitHub Actions Secrets：`APPLE_CERTIFICATE`（Base64 编码的 `.p12`）、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_TEAM_ID`、`APPLE_ID` 和 `APPLE_APP_SPECIFIC_PASSWORD`。
 
 ## 说明与限制
 

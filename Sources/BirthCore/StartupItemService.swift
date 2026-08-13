@@ -4,10 +4,11 @@ import Foundation
 public struct StartupItemService: Sendable {
     public struct Snapshot: Sendable {
         public var items: [LaunchItem]
-        /// Non-nil when BTM login items could not be read (usually missing Full Disk Access).
-        public var loginItemsError: String?
+        /// Typed so the UI only offers FDA for a real permission denial;
+        /// format and store failures require different recovery actions.
+        public var loginItemsError: BTMReader.BTMError?
 
-        public init(items: [LaunchItem] = [], loginItemsError: String? = nil) {
+        public init(items: [LaunchItem] = [], loginItemsError: BTMReader.BTMError? = nil) {
             self.items = items
             self.loginItemsError = loginItemsError
         }
@@ -53,24 +54,32 @@ public struct StartupItemService: Sendable {
             )
         }
 
-        var loginItemsError: String?
+        var loginItemsError: BTMReader.BTMError?
         do {
             let btmItems = try await btmReader.loginItems()
             items.append(contentsOf: btmItems.map(LaunchItem.init(btmItem:)))
+        } catch let error as BTMReader.BTMError {
+            loginItemsError = error
         } catch {
-            loginItemsError = error.localizedDescription
+            loginItemsError = .storeUnavailable(detail: error.localizedDescription)
         }
 
         return Snapshot(items: items, loginItemsError: loginItemsError)
     }
 
-    func merge(item: LaunchItem, overrides: [String: Bool], runtime: [String: JobRuntime]) -> LaunchItem {
+    func merge(item: LaunchItem, overrides: [String: Bool], runtime: [String: JobRuntime]?) -> LaunchItem {
         var item = item
         if let isDisabled = overrides[item.label] {
             item.enablement = isDisabled ? .disabled : .enabled
         } else if item.enablement == .unknown {
             // No override recorded and no Disabled key in the plist: launchd's default.
             item.enablement = .enabled
+        }
+        guard let runtime else {
+            // The domain's runtime query failed: absence of evidence, not
+            // evidence of absence — mark it so the UI can't claim 未加载.
+            item.runtimeUnknown = true
+            return item
         }
         if let jobRuntime = runtime[item.label] {
             item.isLoaded = true
@@ -93,10 +102,10 @@ public struct StartupItemService: Sendable {
             let command = enabled
                 ? launchctl.shellCommandToEnableDaemon(label: item.label, plistPath: item.plistURL?.path)
                 : launchctl.shellCommandToDisableDaemon(label: item.label)
-            let verb = enabled ? "启用" : "停用"
+            let verb = enabled ? L("core.enable") : L("core.disable")
             let output = try await PrivilegedRunner.runShell(
                 command,
-                prompt: "Launager 想要\(verb)启动项“\(item.displayName)”。"
+                prompt: L("prompt.setEnabled", verb, item.displayName)
             )
             switch LaunchctlClient.parsePrivilegedOutcome(output) {
             case .ok:
@@ -104,7 +113,7 @@ public struct StartupItemService: Sendable {
             case .persistFailed:
                 throw LaunchctlError.commandFailed(
                     command: enabled ? "enable" : "disable",
-                    detail: "无法写入持久化的开关状态，未做任何更改。"
+                    detail: L("error.persistFailed")
                 )
             case .stillLoaded:
                 throw LaunchctlError.disabledButStillRunning
