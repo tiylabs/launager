@@ -18,15 +18,15 @@ struct SigningTests {
         #expect(signature?.kind == .apple)
     }
 
-    @Test func inspectsAppleStoreDistributedApp() throws {
-        // Xcode is Apple's own app on the App Store signing chain — the
-        // exact shape the masquerade exemption exists for. Sentinel only
-        // on machines that have it; quietly passes elsewhere.
+    @Test func inspectsAppleDistributedApp() throws {
+        // Xcode is Apple's own app. Depending on the macOS/Xcode release,
+        // Security.framework may expose either Apple's direct signing chain
+        // or the App Store re-signing chain. Sentinel only on machines that
+        // have it; quietly passes elsewhere.
         let path = "/Applications/Xcode.app"
         guard FileManager.default.fileExists(atPath: path) else { return }
         let signature = try #require(CodeSignInspector.inspect(path: path))
-        #expect(signature.kind == .appStore)
-        #expect(signature.signingIdentifier?.hasPrefix("com.apple.") == true)
+        #expect(signature.isVerifiedApple)
         #expect(signature.developerName == "Apple")
     }
 
