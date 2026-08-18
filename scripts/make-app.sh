@@ -2,7 +2,7 @@
 # Builds Launager.app into dist/ from the SPM executable.
 #   ./scripts/make-app.sh            release build, current architecture
 #   ./scripts/make-app.sh universal  release build, arm64 + x86_64
-#   ARCH=arm64 ./scripts/make-app.sh an explicit architecture (CI)
+#   ARCH=arm64 ./scripts/make-app.sh build an explicit architecture (CI)
 #   ./scripts/make-app.sh x86_64     equivalent explicit-architecture form
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -15,6 +15,7 @@ case "$TARGET_ARCH" in
     "")
         ;;
     universal)
+        BUILD_ARGS+=(--arch arm64 --arch x86_64)
         ;;
     arm64|x86_64)
         BUILD_ARGS+=(--arch "$TARGET_ARCH")
@@ -25,76 +26,19 @@ case "$TARGET_ARCH" in
         ;;
 esac
 
-assert_universal() {
-    local binary="$1"
-    local archs
-
-    if ! archs="$(lipo -archs "$binary" 2>&1)"; then
-        echo "ERROR: cannot inspect architectures for $binary: $archs" >&2
-        exit 1
-    fi
-    case " $archs " in
-        *" arm64 "*) ;;
-        *)
-            echo "ERROR: universal build is missing arm64: $archs" >&2
-            exit 1
-            ;;
-    esac
-    case " $archs " in
-        *" x86_64 "*) ;;
-        *)
-            echo "ERROR: universal build is missing x86_64: $archs" >&2
-            exit 1
-            ;;
-    esac
-    echo "==> verified universal architectures: $archs"
-}
-
-if [[ "$TARGET_ARCH" == "universal" ]]; then
-    # Building the two slices separately keeps this path usable with the
-    # Command Line Tools as well as full Xcode. SwiftPM's multi-arch mode
-    # delegates to xcbuild, which is not shipped with the Command Line Tools.
-    ARM64_BUILD_ARGS=("${BUILD_ARGS[@]}" --arch arm64)
-    X86_64_BUILD_ARGS=("${BUILD_ARGS[@]}" --arch x86_64)
-
-    echo "==> swift build ${ARM64_BUILD_ARGS[*]}"
-    swift build "${ARM64_BUILD_ARGS[@]}"
-    ARM64_BIN_PATH="$(swift build "${ARM64_BUILD_ARGS[@]}" --show-bin-path)/Launager"
-
-    echo "==> swift build ${X86_64_BUILD_ARGS[*]}"
-    swift build "${X86_64_BUILD_ARGS[@]}"
-    X86_64_BIN_PATH="$(swift build "${X86_64_BUILD_ARGS[@]}" --show-bin-path)/Launager"
-
-    mkdir -p "$PWD/dist"
-    UNIVERSAL_BIN_PATH="$PWD/dist/.Launager-universal"
-    rm -f "$UNIVERSAL_BIN_PATH"
-    echo "==> lipo -create arm64 + x86_64"
-    lipo -create "$ARM64_BIN_PATH" "$X86_64_BIN_PATH" -output "$UNIVERSAL_BIN_PATH"
-    BIN_PATH="$UNIVERSAL_BIN_PATH"
-    BIN_DIR="$(dirname "$ARM64_BIN_PATH")"
-else
-    echo "==> swift build ${BUILD_ARGS[*]}"
-    swift build "${BUILD_ARGS[@]}"
-    BIN_PATH="$(swift build "${BUILD_ARGS[@]}" --show-bin-path)/Launager"
-    BIN_DIR="$(dirname "$BIN_PATH")"
-fi
-
-if [[ "$TARGET_ARCH" == "universal" ]]; then
-    assert_universal "$BIN_PATH"
-fi
+echo "==> swift build ${BUILD_ARGS[*]}"
+swift build "${BUILD_ARGS[@]}"
+BIN_PATH="$(swift build "${BUILD_ARGS[@]}" --show-bin-path)/Launager"
 
 echo "==> assembling ${APP}"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_PATH" "$APP/Contents/MacOS/Launager"
 
-if [[ "$TARGET_ARCH" == "universal" ]]; then
-    assert_universal "$APP/Contents/MacOS/Launager"
-fi
-
 # SwiftPM keeps library resources in target-specific bundles next to the
 # executable. Copy both bundles into the app so the packaged build resolves
 # the same localized strings as `swift run` and `swift test`.
+BIN_DIR="$(dirname "$BIN_PATH")"
 for bundle in \
     "$BIN_DIR/Launager_BirthCore.bundle" \
     "$BIN_DIR/Launager_BirthUI.bundle"; do

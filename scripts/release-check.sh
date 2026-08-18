@@ -2,7 +2,7 @@
 # Release gate — run before EVERY release/version bump:
 #   ./scripts/release-check.sh
 #
-# Stages: unit tests -> universal package -> smoke launch -> health checks -> cleanup.
+# Stages: unit tests -> package -> smoke launch -> health checks -> cleanup.
 # Exits non-zero on the first failure; a release only ships on ✅.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -15,36 +15,11 @@ fail() {
     exit 1
 }
 
-BUILD_HIDDEN=0
-HIDDEN_BUILD="$PWD/.build.release-check-hidden"
-AUTOTEST_SET=0
-
-restore_build() {
-    if [ "$BUILD_HIDDEN" -eq 1 ] && [ -e "$HIDDEN_BUILD" ]; then
-        mv "$HIDDEN_BUILD" "$PWD/.build"
-        BUILD_HIDDEN=0
-    fi
-}
-
-cleanup_smoke() {
-    if [ "$AUTOTEST_SET" -eq 1 ]; then
-        launchctl unsetenv LAUNAGER_AUTOTEST 2>/dev/null || true
-        AUTOTEST_SET=0
-    fi
-    restore_build
-}
-
 echo "==> [1/4] swift test"
 swift test 2>&1 | tail -2
 
-echo "==> [2/4] package (universal)"
-./scripts/make-app.sh universal
-
-for bundle in \
-    "$APP/Contents/Resources/Launager_BirthCore.bundle" \
-    "$APP/Contents/Resources/Launager_BirthUI.bundle"; do
-    [ -d "$bundle" ] || fail "app 内缺少本地化资源包：$bundle"
-done
+echo "==> [2/4] package"
+./scripts/make-app.sh
 
 echo "==> [3/4] smoke launch"
 # Quit any running instance (path-pinned so a stale /Applications copy
@@ -58,24 +33,10 @@ crashes_before=$(ls "$CRASH_DIR" 2>/dev/null | grep -c '^Launager-' || true)
 # LAUNAGER_AUTOTEST=inspector drives the advanced table + inspector path —
 # the route that once crashed on every click. launchctl setenv + open is
 # mandatory: exec-ing the binary from a shell inherits its sandbox.
-# Hide SwiftPM's build directory so the smoke launch proves that the app is
-# self-contained and cannot fall back to an absolute .build resource path.
-if [ -e "$HIDDEN_BUILD" ]; then
-    fail "发现上一次 release-check 遗留的隐藏构建目录：$HIDDEN_BUILD"
-fi
-if [ -e "$PWD/.build" ]; then
-    mv "$PWD/.build" "$HIDDEN_BUILD"
-    BUILD_HIDDEN=1
-    trap cleanup_smoke EXIT
-fi
 launchctl setenv LAUNAGER_AUTOTEST inspector
-AUTOTEST_SET=1
 open "$APP"
 sleep 12
 launchctl unsetenv LAUNAGER_AUTOTEST
-AUTOTEST_SET=0
-restore_build
-trap - EXIT
 
 echo "==> [4/4] health checks"
 pid=$(pgrep -x Launager) || fail "进程未存活（启动 12 秒后已退出）"

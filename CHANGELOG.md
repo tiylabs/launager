@@ -2,13 +2,6 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
-
-### 变更
-
-- 正式发布构建改为 universal 双架构（arm64 + x86_64），统一生成可在 Apple Silicon 与 Intel Mac 上运行的 ZIP 与 DMG。
-- universal 架构校验纳入构建脚本、发布门禁和 GitHub Actions，资源自包含检查也会在冒烟启动前执行。
-
 ## [0.0.2] - 2026-08-13
 
 ### 新增
