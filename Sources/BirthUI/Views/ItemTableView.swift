@@ -3,83 +3,175 @@ import SwiftUI
 
 struct ItemTableView: View {
     private var state: AppState { .shared }
+    @State private var copiedDiagnosticReport: String?
+
     var body: some View {
         @Bindable var state = state
         Group {
             if state.isLoading && !state.hasLoadedOnce {
-                ProgressView("正在扫描启动项…")
+                ProgressView(L("advanced.scanning"))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if showsFullDiskAccessGuidance {
-                fullDiskAccessGuidance
+            } else if showsLoginItemsGuidance {
+                loginItemsGuidance
             } else if state.visibleItems.isEmpty {
-                ContentUnavailableView(
-                    state.searchText.isEmpty ? "没有启动项" : "无匹配结果",
-                    systemImage: state.searchText.isEmpty ? "moon.zzz" : "magnifyingglass",
-                    description: state.searchText.isEmpty
-                        ? Text("此分类下没有注册任何启动项。")
-                        : Text("没有与“\(state.searchText)”匹配的项目。")
-                )
+                emptyState
             } else {
                 table
             }
         }
     }
 
-    /// The 登录项 domain is the only slice that needs Full Disk Access.
-    /// When it's selected and unreadable, replace the empty table with a
-    /// one-time-setup walkthrough instead of a shrug.
-    private var showsFullDiskAccessGuidance: Bool {
+    /// Four reasons the table can be empty, four messages — most specific
+    /// narrowing first: search, run-state filter, the 第三方 scope, and
+    /// only then a genuinely empty category. Nothing that merely *hides*
+    /// items may masquerade as "没有启动项".
+    @ViewBuilder
+    private var emptyState: some View {
+        if !state.searchText.isEmpty {
+            ContentUnavailableView(
+                L("empty.noResults"),
+                systemImage: "magnifyingglass",
+                description: Text(L("advanced.empty.noMatch", state.searchText))
+            )
+        } else if state.anyTableFilterActive {
+            ContentUnavailableView(
+                L("empty.noResults"),
+                systemImage: "line.3.horizontal.decrease.circle",
+                description: filterEmptyDescription
+            )
+        } else if state.scopeHidesAllItems {
+            ContentUnavailableView(
+                L("advanced.empty.scopeTitle"),
+                systemImage: "apple.logo",
+                description: Text(L("advanced.empty.scopeBody"))
+            )
+        } else {
+            ContentUnavailableView(
+                L("advanced.empty.noneTitle"),
+                systemImage: "moon.zzz",
+                description: Text(L("advanced.empty.noneBody"))
+            )
+        }
+    }
+
+    /// Names the narrowing dimension when exactly one filter is active;
+    /// both at once gets the generic line.
+    private var filterEmptyDescription: Text {
+        switch (state.runStateFilter, state.enablementFilter) {
+        case (.all, let enablement):
+            Text(L("advanced.empty.noEnablement", enablement.displayName))
+        case (let runState, .all):
+            Text(L("advanced.empty.noRunState", runState.displayName))
+        default:
+            Text(L("advanced.empty.filtered"))
+        }
+    }
+
+    /// When the BTM slice is unreadable, replace the empty table with
+    /// error-specific recovery instead of treating every failure as FDA.
+    private var showsLoginItemsGuidance: Bool {
         state.selection == .domain(.loginItem)
             && state.loginItemsError != nil
             && state.visibleItems.isEmpty
     }
 
-    private var fullDiskAccessGuidance: some View {
-        ContentUnavailableView {
-            Label("需要一次性授权", systemImage: "lock.shield")
-        } description: {
-            Text(
-                """
-                登录项数据由 macOS 的后台任务管理数据库提供，读取它需要“完全磁盘访问权限”。
-                在系统设置中勾选 Launager——只需授权一次，之后每次刷新都会静默读取，不会再弹任何窗口。
-                如果列表里 Launager 已经是开启状态，请先关闭再重新开启一次（重新安装后授权需要刷新）。
-                """
-            )
-        } actions: {
-            Button("打开隐私设置") {
-                state.openFullDiskAccessSettings()
+    @ViewBuilder
+    private var loginItemsGuidance: some View {
+        switch state.loginItemsError {
+        case .fullDiskAccessRequired:
+            ContentUnavailableView {
+                Label(L("fda.guide.title"), systemImage: "lock.shield")
+            } description: {
+                Text(L("fda.guide.body"))
+            } actions: {
+                Button(L("common.openPrivacySettings")) {
+                    state.openFullDiskAccessSettings()
+                }
+                Button(L("fda.guide.refreshed")) {
+                    Task { await state.refresh() }
+                }
             }
-            Button("已授权，刷新") {
+        case .unsupportedFormat:
+            ContentUnavailableView {
+                Label(L("btm.unsupported.title"), systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(L("btm.unsupported.body"))
+            } actions: {
+                retryAndSystemSettingsButtons
+                copyDiagnosticsButton
+            }
+        case .storeUnavailable, .accountUnavailable:
+            ContentUnavailableView {
+                Label(L("btm.unavailable.title"), systemImage: "externaldrive.badge.exclamationmark")
+            } description: {
+                Text(L("btm.unavailable.body"))
+            } actions: {
+                retryAndSystemSettingsButtons
+                copyDiagnosticsButton
+            }
+        case nil:
+            EmptyView()
+        }
+    }
+
+    private var retryAndSystemSettingsButtons: some View {
+        Group {
+            Button(L("common.tryAgain")) {
                 Task { await state.refresh() }
+            }
+            Button(L("common.openSystemSettings")) {
+                state.openLoginItemsSettings()
+            }
+        }
+    }
+
+    private var copyDiagnosticsButton: some View {
+        let currentReport = state.loginItemsDiagnosticReport
+        return Button(
+            copiedDiagnosticReport == currentReport
+                ? L("btm.diagnosticsCopied")
+                : L("btm.copyDiagnostics")
+        ) {
+            if state.copyLoginItemsDiagnostic() {
+                copiedDiagnosticReport = currentReport
             }
         }
     }
 
     private var table: some View {
         @Bindable var state = state
-        return Table(state.visibleItems, selection: $state.selectedItemID) {
-            TableColumn("名称") { item in
+        return Table(state.visibleItems, selection: $state.selectedItemID, sortOrder: $state.tableSortOrder) {
+            TableColumn(L("column.name"), sortUsing: AppState.TableSortColumn.name.comparator) { item in
                 NameCell(item: item)
+                    .repeatTapTogglesInspector(item)
             }
             .width(min: 220, ideal: 300)
 
-            TableColumn("开发者") { item in
+            TableColumn(L("column.developer"), sortUsing: AppState.TableSortColumn.developer.comparator) { item in
                 DeveloperCell(item: item)
+                    .repeatTapTogglesInspector(item)
             }
             .width(min: 140, ideal: 190)
 
-            TableColumn("类型") { item in
+            TableColumn(L("column.kind"), sortUsing: AppState.TableSortColumn.kind.comparator) { item in
                 Text(kindText(for: item))
                     .foregroundStyle(.secondary)
+                    .repeatTapTogglesInspector(item)
             }
             .width(min: 90, ideal: 110)
 
-            TableColumn("状态") { item in
+            TableColumn(L("column.status"), sortUsing: AppState.TableSortColumn.runState.comparator) { item in
                 StatusCell(item: item)
+                    .repeatTapTogglesInspector(item)
             }
             .width(min: 70, ideal: 80)
 
-            TableColumn("启用") { item in
+            // Header sort is fine here (the header is not the cell); what
+            // stays off is the ROW tap layer below.
+            TableColumn(L("column.enabled"), sortUsing: AppState.TableSortColumn.enablement.comparator) { item in
+                // The ONE gesture-free column: its switch must not double
+                // as a pane toggle. Every other (and any future) column
+                // must carry .repeatTapTogglesInspector.
                 EnabledCell(item: item)
             }
             .width(56)
@@ -105,37 +197,51 @@ struct ItemTableView: View {
     @ViewBuilder
     private func contextMenu(for item: LaunchItem) -> some View {
         if let plistURL = item.plistURL {
-            Button("在访达中显示") { state.revealInFinder(plistURL) }
+            Button(L("common.revealInFinder")) { state.revealInFinder(plistURL) }
         }
         if let path = item.executablePath {
-            Button("显示可执行文件") { state.revealInFinder(URL(filePath: path)) }
+            Button(L("advanced.revealExecutable")) { state.revealInFinder(URL(filePath: path)) }
         }
         if item.isUserRemovable {
             Divider()
-            Button("移除…", role: .destructive) { state.itemPendingRemoval = item }
+            Button(L("common.remove"), role: .destructive) { state.itemPendingRemoval = item }
         } else {
-            Button("打开系统设置…") { state.openLoginItemsSettings() }
+            Button(L("common.openSystemSettings")) { state.openLoginItemsSettings() }
         }
     }
 
     private func kindText(for item: LaunchItem) -> String {
         if item.domain == .loginItem {
-            return item.btmTypeDescription.map(Self.localizedBTMType) ?? "登录项"
+            return item.btmTypeDescription.map(Self.localizedBTMType) ?? L("domain.loginItem")
         }
         return item.domain.displayName
     }
 
-    /// Maps `sfltool dumpbtm` type strings to Chinese; unknown values pass
-    /// through capitalized so new BTM types still show something sensible.
+    /// Maps normalized BTM type names to the UI language; unknown values
+    /// pass through capitalized so new types still show something sensible.
     private static func localizedBTMType(_ raw: String) -> String {
         switch raw.lowercased() {
         case "app": "App"
-        case "login item": "登录项"
-        case "agent": "代理"
-        case "daemon": "守护进程"
-        case "background app refresh": "后台刷新"
+        case "login item": L("domain.loginItem")
+        case "agent": L("btm.agent")
+        case "daemon": L("domain.daemon")
+        case "background app refresh": L("btm.backgroundRefresh")
         default: raw.capitalized
         }
+    }
+}
+
+private extension View {
+    /// Full-width tap layer so a repeat click on the selected row toggles
+    /// the detail pane. Simultaneous, so the table's own mouse-down
+    /// selection keeps working. Every column gets this EXCEPT 启用 — its
+    /// switch must not double as a pane toggle.
+    func repeatTapTogglesInspector(_ item: LaunchItem) -> some View {
+        frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .simultaneousGesture(TapGesture().onEnded {
+                AppState.shared.rowTapped(item.id)
+            })
     }
 }
 
@@ -167,17 +273,17 @@ private struct DeveloperCell: View {
             HStack(spacing: 4) {
                 Image(systemName: "exclamationmark.octagon.fill")
                     .foregroundStyle(.red)
-                Text("伪装系统项")
+                Text(L("badge.masquerade"))
                     .foregroundStyle(.red)
                     .lineLimit(1)
             }
-            .help("标识符声称属于 Apple（com.apple.*），但签名验证不符——这是恶意软件常用的伪装手法。实际签名：\(state.signature(for: item)?.shortDescription ?? "未知")")
+            .help(L("badge.masqueradeHelp", state.signature(for: item)?.shortDescription ?? L("common.unknown")))
         } else if let signature = state.signature(for: item) {
             HStack(spacing: 4) {
                 if !signature.isTrustworthy {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                        .help("此可执行文件没有可识别的开发者签名")
+                        .help(L("badge.untrustedHelp"))
                 }
                 Text(signature.shortDescription)
                     .lineLimit(1)
@@ -194,19 +300,25 @@ private struct StatusCell: View {
     let item: LaunchItem
 
     var body: some View {
-        if let pid = item.pid {
-            Label("PID \(pid, format: .number.grouping(.never))", systemImage: "circle.fill")
+        switch item.runState {
+        case .running(let pid):
+            Label(L("status.pid", pid), systemImage: "circle.fill")
                 .foregroundStyle(.green)
                 .labelStyle(StatusLabelStyle())
-                .help("正在运行（进程号 \(pid)）")
-        } else if item.isLoaded {
-            Label("已加载", systemImage: "circle.dotted")
+                .help(L("status.runningHelp", pid))
+        case .loadedIdle:
+            Label(L("status.loaded"), systemImage: "circle.dotted")
                 .foregroundStyle(.secondary)
                 .labelStyle(StatusLabelStyle())
-                .help("已加载到 launchd，当前未运行")
-        } else {
+                .help(L("status.loadedHelp"))
+        case .notLoaded:
             Text("—")
                 .foregroundStyle(.tertiary)
+                .help(L("runState.notLoaded"))
+        case .unknown:
+            Text("—")
+                .foregroundStyle(.tertiary)
+                .help(L("status.unknownHelp"))
         }
     }
 }
@@ -230,7 +342,7 @@ private struct EnabledCell: View {
                 .toggleStyle(.switch)
                 .controlSize(.mini)
                 .disabled(true)
-                .help("由 macOS 管理——请在系统设置 > 通用 > 登录项与扩展中更改")
+                .help(L("enablement.managedHelp"))
         } else {
             EnablementToggle(item: item)
         }

@@ -41,18 +41,21 @@ public struct LaunchctlClient: Sendable {
     }
 
     /// Jobs loaded in the current user's session (user + global agents).
-    public func guiSessionRuntime() async -> [String: JobRuntime] {
+    /// nil when the query itself failed — callers must not read that as
+    /// "nothing loaded" (an empty dictionary IS "nothing loaded").
+    public func guiSessionRuntime() async -> [String: JobRuntime]? {
         guard let result = try? await ProcessRunner.run("/bin/launchctl", ["list"]),
               result.succeeded
-        else { return [:] }
+        else { return nil }
         return Self.parseList(result.stdout)
     }
 
     /// Jobs loaded in the system domain (daemons). Readable without root.
-    public func systemRuntime() async -> [String: JobRuntime] {
+    /// nil when the query itself failed, same contract as guiSessionRuntime().
+    public func systemRuntime() async -> [String: JobRuntime]? {
         guard let result = try? await ProcessRunner.run("/bin/launchctl", ["print", "system"]),
               result.succeeded
-        else { return [:] }
+        else { return nil }
         return Self.parsePrintServices(result.stdout)
     }
 
@@ -100,28 +103,28 @@ public struct LaunchctlClient: Sendable {
     }
 
     public static func parsePrivilegedOutcome(_ stdout: String) -> PrivilegedOutcome {
-        if stdout.contains("BIRTH_PERSIST_FAILED") { return .persistFailed }
-        if stdout.contains("BIRTH_STILL_LOADED") { return .stillLoaded }
+        if stdout.contains("LAUNAGER_PERSIST_FAILED") { return .persistFailed }
+        if stdout.contains("LAUNAGER_STILL_LOADED") { return .stillLoaded }
         return .ok
     }
 
     public func shellCommandToDisableDaemon(label: String) -> String {
         let target = "system/\(shellQuote(label))"
-        return "launchctl disable \(target) || { echo BIRTH_PERSIST_FAILED; exit 0; }; "
+        return "launchctl disable \(target) || { echo LAUNAGER_PERSIST_FAILED; exit 0; }; "
             + "launchctl bootout \(target) >/dev/null 2>&1; "
-            + "launchctl print \(target) >/dev/null 2>&1 && echo BIRTH_STILL_LOADED || echo BIRTH_OK"
+            + "launchctl print \(target) >/dev/null 2>&1 && echo LAUNAGER_STILL_LOADED || echo LAUNAGER_OK"
     }
 
     public func shellCommandToEnableDaemon(label: String, plistPath: String?) -> String {
         let target = "system/\(shellQuote(label))"
-        var command = "launchctl enable \(target) || { echo BIRTH_PERSIST_FAILED; exit 0; }; "
+        var command = "launchctl enable \(target) || { echo LAUNAGER_PERSIST_FAILED; exit 0; }; "
         if let plistPath {
             // Bootstrap failure is tolerable (already loaded, or it will
             // load next boot now that it's enabled) — the refresh after
             // this shows the real runtime state either way.
             command += "launchctl bootstrap system \(shellQuote(plistPath)) >/dev/null 2>&1; "
         }
-        command += "echo BIRTH_OK"
+        command += "echo LAUNAGER_OK"
         return command
     }
 
@@ -199,9 +202,9 @@ public enum LaunchctlError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .commandFailed(let command, let detail):
-            "launchctl \(command) 执行失败：\(detail.trimmingCharacters(in: .whitespacesAndNewlines))"
+            L("error.launchctlFailed", command, detail.trimmingCharacters(in: .whitespacesAndNewlines))
         case .disabledButStillRunning:
-            "已停用，但该任务的进程仍在运行；注销或重启后将彻底停止。"
+            L("error.disabledStillRunning")
         }
     }
 }

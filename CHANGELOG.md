@@ -2,6 +2,19 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.0.2] - 2026-08-13
+
+### 新增
+
+- 直接读取 macOS Background Task Management 登录项数据库，支持当前账户匹配、macOS 27 的 `BTMUserStore` 布局、结构化归档诊断和安全脱敏复制。
+- 高级启动项支持运行状态过滤、PID 精确搜索、启用状态过滤、表头排序及排序状态持久化；修复签名异步更新竞态。
+- 识别 Apple App Store 签名，避免 Xcode 等 Apple 应用被误报为伪装系统项。
+- 增加英文界面、语言设置窗口，以及切换语言后的安全重启。
+
+### 修复
+
+- 发布构建现在会携带 BirthCore/BirthUI 的 SwiftPM 本地化资源 bundle，并在资源缺失时直接失败。
+
 ## [0.2.3] - 2026-07-23
 
 ### 修复
@@ -25,7 +38,7 @@
 ### 新增
 
 - **"其他方式自启"分组**：启动应用页现在聚合展示通过 LaunchAgent 在登录时打开真实 App 的启动项（常见于 App 自带的"开机启动"设置）——显示图标与签名身份，行内免密开关一键停启，右键可直达高级视图或彻底移除；内嵌辅助程序与更新器不会混入，仍归高级启动项
-- **关于窗口**：版本、标语、GitHub 链接与作者信息（菜单栏 → 关于 Birth）
+- **关于窗口**：版本、标语、GitHub 链接与作者信息（菜单栏 → 关于 Launager）
 - **侧边栏品牌头**：产品名称常驻侧边栏顶部
 
 ### 变更
@@ -42,7 +55,7 @@
 
 - **统一侧边栏布局**：启动应用、最近移除（有记录时显示）、高级启动项（全部 / 用户后台项 / 全局后台项 / 守护进程 / 登录项），窗口标题即当前位置，⌘1 / ⌘2 快速切换
 - **启动应用**：零授权读取"登录时打开"列表（LSSharedFileList，写入走 System Events——首次修改才请求自动化授权）；拖拽 .app 添加；"+N 后台项"关联组件透视；最近移除记录与一键重新启用（本机持久保存，上限 10 条）
-- **高级启动项**：三个 launchd 目录 + BTM 登录项四层扫描；实时运行状态（PID）；用户级启停免密、守护进程走管理员授权；删除前自动备份至 `~/Library/Application Support/Birth/Backups`，plist 移入废纸篓；属性列表查看器
+- **高级启动项**：三个 launchd 目录 + BTM 登录项四层扫描；实时运行状态（PID）；用户级启停免密、守护进程走管理员授权；删除前自动备份至 `~/Library/Application Support/Launager/Backups`，plist 移入废纸篓；属性列表查看器
 - **签名身份验证**：证书链锚点校验（`anchor apple` / `anchor apple generic`），自签名证书无法冒充 Apple 或开发者身份，单独归类为"不受信任的证书"
 - **伪装检测**：标识符声称 `com.apple.*` 但签名验证不符的项目显示红色"伪装系统项"警告（表格徽章 + 详情横幅）
 - **权限分层**：查看免授权；"登录项"分类缺少完全磁盘访问时优雅降级（一次性授权引导、相关视图内提醒、授权后切回自动刷新），杜绝 sfltool 反复弹密码框
@@ -50,6 +63,7 @@
 - **全中文界面**（含系统菜单栏，声明 zh-Hans 本地化）
 - **测试与发版设施**：45 个单元测试（含伪装检测与特权命令标记协议回归）；`scripts/release-check.sh` 发版门禁（测试 → 打包 → 冒烟启动 → 进程 / 主线程 / 崩溃三重健康检查）；GitHub Actions CI
 
+[0.0.2]: https://github.com/tiylabs/launager/releases/tag/v0.0.2
 [0.2.2]: https://github.com/iAmCorey/birth/releases/tag/v0.2.2
 [0.2.1]: https://github.com/iAmCorey/birth/releases/tag/v0.2.1
 [0.2.0]: https://github.com/iAmCorey/birth/releases/tag/v0.2.0

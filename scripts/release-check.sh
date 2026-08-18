@@ -30,13 +30,13 @@ sleep 1
 
 crashes_before=$(ls "$CRASH_DIR" 2>/dev/null | grep -c '^Launager-' || true)
 
-# BIRTH_AUTOTEST=inspector drives the advanced table + inspector path —
+# LAUNAGER_AUTOTEST=inspector drives the advanced table + inspector path —
 # the route that once crashed on every click. launchctl setenv + open is
 # mandatory: exec-ing the binary from a shell inherits its sandbox.
-launchctl setenv BIRTH_AUTOTEST inspector
+launchctl setenv LAUNAGER_AUTOTEST inspector
 open "$APP"
 sleep 12
-launchctl unsetenv BIRTH_AUTOTEST
+launchctl unsetenv LAUNAGER_AUTOTEST
 
 echo "==> [4/4] health checks"
 pid=$(pgrep -x Launager) || fail "进程未存活（启动 12 秒后已退出）"

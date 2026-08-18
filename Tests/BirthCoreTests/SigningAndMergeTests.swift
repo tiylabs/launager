@@ -18,6 +18,18 @@ struct SigningTests {
         #expect(signature?.kind == .apple)
     }
 
+    @Test func inspectsAppleDistributedApp() throws {
+        // Xcode is Apple's own app. Depending on the macOS/Xcode release,
+        // Security.framework may expose either Apple's direct signing chain
+        // or the App Store re-signing chain. Sentinel only on machines that
+        // have it; quietly passes elsewhere.
+        let path = "/Applications/Xcode.app"
+        guard FileManager.default.fileExists(atPath: path) else { return }
+        let signature = try #require(CodeSignInspector.inspect(path: path))
+        #expect(signature.isVerifiedApple)
+        #expect(signature.developerName == "Apple")
+    }
+
     @Test func missingPathReturnsNil() {
         #expect(CodeSignInspector.inspect(path: "/nonexistent/binary") == nil)
     }
@@ -65,6 +77,57 @@ struct MergeTests {
         #expect(merged.isLoaded)
         #expect(merged.pid == 4242)
     }
+
+    /// A failed runtime query (nil) is "we don't know"; an empty result
+    /// ([:]) is "known not loaded". The two must produce different states —
+    /// filing ignorance under 未加载 would let a broken query masquerade
+    /// as an idle system.
+    @Test func failedRuntimeQueryYieldsUnknownNotNotLoaded() {
+        let unknown = service.merge(item: makeItem(), overrides: [:], runtime: nil)
+        #expect(unknown.runtimeUnknown)
+        #expect(unknown.runState == .unknown)
+
+        let absent = service.merge(item: makeItem(), overrides: [:], runtime: [:])
+        #expect(!absent.runtimeUnknown)
+        #expect(absent.runState == .notLoaded)
+    }
+}
+
+@Suite("Sort keys")
+struct SortKeyTests {
+    /// Apple identity arrives two ways — codesign (developerName "Apple")
+    /// and BTM conversion (kind only) — and both must land in ONE sort
+    /// bucket, or 开发者-sorting the 全部 scope shears Apple items apart.
+    @Test func appleSortsToOneBucketRegardlessOfSource() {
+        let codesigned = LaunchItem(
+            id: "a", label: "com.apple.x", displayName: "x", domain: .globalDaemon,
+            signature: SignatureInfo(kind: .apple, developerName: "Apple")
+        )
+        let btm = LaunchItem(
+            id: "b", label: "com.apple.y", displayName: "y", domain: .loginItem,
+            signature: SignatureInfo(kind: .apple)
+        )
+        #expect(codesigned.developerSortName == "Apple")
+        #expect(btm.developerSortName == "Apple")
+        #expect(LaunchItem(id: "c", label: "c", displayName: "c", domain: .userAgent)
+            .developerSortName.isEmpty)
+    }
+
+    /// Inside 登录项 every row's domain is .loginItem — the BTM subtype
+    /// must break the tie or the 类型 header sorts nothing there.
+    @Test func kindSortKeyBreaksTiesByBTMSubtype() {
+        let app = LaunchItem(
+            id: "a", label: "a", displayName: "a", domain: .loginItem, btmTypeDescription: "app"
+        )
+        let daemon = LaunchItem(
+            id: "d", label: "d", displayName: "d", domain: .loginItem, btmTypeDescription: "daemon"
+        )
+        let agent = LaunchItem(id: "g", label: "g", displayName: "g", domain: .userAgent)
+        #expect(app.kindSortKey != daemon.kindSortKey)
+        #expect(app.kindSortKey < daemon.kindSortKey)
+        // Domain grouping stays primary across the whole table.
+        #expect(agent.kindSortKey < app.kindSortKey)
+    }
 }
 
 @Suite("Masquerade detection")
@@ -84,8 +147,62 @@ struct MasqueradeTests {
         #expect(!item(label: "com.apple.Finder").isMasquerading(signature: SignatureInfo(kind: .apple)))
     }
 
+    /// Xcode's shape: App Store chain + store-controlled com.apple.*
+    /// signing identifier. Genuine Apple, must not be flagged.
+    @Test func appleStoreAppWithAppleIdentifierIsGenuine() {
+        let xcode = SignatureInfo(
+            kind: .appStore, developerName: "Apple", signingIdentifier: "com.apple.dt.Xcode"
+        )
+        #expect(!item(label: "com.apple.dt.Xcode").isMasquerading(signature: xcode))
+    }
+
+    /// A third-party store app claiming a com.apple.* label is the real
+    /// masquerade; so is a store chain with no identifier captured — the
+    /// exemption requires positive proof, not absence of evidence.
+    @Test func appleLabelOnForeignStoreAppStillMasquerades() {
+        let fake = item(label: "com.apple.fake")
+        #expect(fake.isMasquerading(
+            signature: SignatureInfo(kind: .appStore, signingIdentifier: "com.vendor.tool")
+        ))
+        #expect(fake.isMasquerading(signature: SignatureInfo(kind: .appStore)))
+    }
+
     @Test func unverifiedSignatureIsNotAnAccusation() {
         #expect(!item(label: "com.apple.pending").isMasquerading(signature: nil))
         #expect(!item(label: "com.vendor.tool").isMasquerading(signature: SignatureInfo(kind: .unsigned)))
+    }
+}
+
+@Suite("BTM signature pre-fill")
+struct BTMPreFillTests {
+    private func btm(bundleID: String, team: String?) -> BTMItem {
+        BTMItem(
+            uuid: "test-uuid",
+            name: "Test",
+            teamIdentifier: team,
+            typeDescription: "app",
+            isEnabled: true,
+            executablePath: "/Applications/Test.app",
+            bundleIdentifier: bundleID
+        )
+    }
+
+    /// A com.apple.* label must never receive a pre-filled verdict,
+    /// in either direction — real check or nothing. Full rationale
+    /// lives on the pre-fill logic in `LaunchItem(btmItem:)`.
+    @Test func appleLabelDefersToRealCheckRegardlessOfTeam() {
+        let withTeam = LaunchItem(btmItem: btm(bundleID: "com.apple.dt.Xcode", team: "59GAB85EFG"))
+        #expect(withTeam.signature == nil)
+        #expect(!withTeam.isMasquerading(signature: withTeam.signature))
+
+        let withoutTeam = LaunchItem(btmItem: btm(bundleID: "com.apple.Safari", team: nil))
+        #expect(withoutTeam.signature == nil)
+        #expect(!withoutTeam.isMasquerading(signature: withoutTeam.signature))
+    }
+
+    @Test func thirdPartyTeamStillPreFillsDeveloperID() {
+        let item = LaunchItem(btmItem: btm(bundleID: "com.example.browser", team: "TEAM123456"))
+        #expect(item.signature?.kind == .developerID)
+        #expect(item.signature?.teamID == "TEAM123456")
     }
 }

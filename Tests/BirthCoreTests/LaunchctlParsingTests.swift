@@ -81,18 +81,18 @@ struct LaunchctlParsingTests {
 @Suite("Privileged fragment outcomes")
 struct PrivilegedOutcomeTests {
     @Test func parsesMarkers() {
-        #expect(LaunchctlClient.parsePrivilegedOutcome("BIRTH_OK\n") == .ok)
-        #expect(LaunchctlClient.parsePrivilegedOutcome("BIRTH_PERSIST_FAILED") == .persistFailed)
-        #expect(LaunchctlClient.parsePrivilegedOutcome("noise\nBIRTH_STILL_LOADED\n") == .stillLoaded)
+        #expect(LaunchctlClient.parsePrivilegedOutcome("LAUNAGER_OK\n") == .ok)
+        #expect(LaunchctlClient.parsePrivilegedOutcome("LAUNAGER_PERSIST_FAILED") == .persistFailed)
+        #expect(LaunchctlClient.parsePrivilegedOutcome("noise\nLAUNAGER_STILL_LOADED\n") == .stillLoaded)
         // Unknown output defaults to ok — the exit status already gated hard failures.
         #expect(LaunchctlClient.parsePrivilegedOutcome("") == .ok)
     }
 
     @Test func disableFragmentCarriesMarkerProtocol() {
         let fragment = LaunchctlClient().shellCommandToDisableDaemon(label: "com.test.daemon")
-        #expect(fragment.contains("BIRTH_PERSIST_FAILED"))
-        #expect(fragment.contains("BIRTH_STILL_LOADED"))
-        #expect(fragment.contains("BIRTH_OK"))
+        #expect(fragment.contains("LAUNAGER_PERSIST_FAILED"))
+        #expect(fragment.contains("LAUNAGER_STILL_LOADED"))
+        #expect(fragment.contains("LAUNAGER_OK"))
         #expect(fragment.contains("launchctl print"))
     }
 }
