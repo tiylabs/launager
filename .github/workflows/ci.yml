@@ -17,5 +17,7 @@ jobs:
         run: swift --version
       - name: Build
         run: swift build
+      - name: Build universal release app
+        run: ./scripts/make-app.sh universal
       - name: Test
         run: swift test

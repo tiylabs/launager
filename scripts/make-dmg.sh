@@ -1,8 +1,8 @@
 #!/bin/bash
 # Packages dist/Launager.app into a drag-to-Applications DMG. The release
 # workflow re-signs and notarizes this artifact before publishing it.
-#   ./scripts/make-app.sh && ./scripts/make-dmg.sh
-#   ./scripts/make-dmg.sh release-artifacts/Launager_0.0.2_arm64.dmg
+#   ./scripts/make-app.sh universal && ./scripts/make-dmg.sh
+#   ./scripts/make-dmg.sh release-artifacts/Launager_0.0.2_universal.dmg
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

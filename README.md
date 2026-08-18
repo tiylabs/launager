@@ -65,7 +65,7 @@ macOS 把启动项分散在至少四套机制里：
 
 ### 方式一：下载 DMG
 
-从 [Releases](https://github.com/tiylabs/launager/releases) 下载与 Mac 架构对应的 `Launager_<版本>_<架构>.dmg`，打开后把 Launager 拖进"应用程序"。
+从 [Releases](https://github.com/tiylabs/launager/releases) 下载 `Launager_<版本>_universal.dmg`，打开后把 Launager 拖进"应用程序"。该 DMG 同时包含 arm64 与 x86_64，可在 Apple Silicon 和 Intel Mac 上原生运行。
 
 标签发布由 GitHub Actions 使用 Apple Developer ID 签名并公证；本地 `make-app.sh` 构建仍使用 ad-hoc 签名，适合开发与测试。
 
@@ -76,7 +76,7 @@ Launager 使用新的 Bundle ID `ai.tiy.launager`；从 Birth 升级时，macOS 
 ```bash
 git clone https://github.com/tiylabs/launager.git
 cd launager
-./scripts/make-app.sh
+./scripts/make-app.sh universal
 open dist/Launager.app
 ```
 
@@ -85,16 +85,17 @@ open dist/Launager.app
 ## 开发
 
 ```bash
-swift test                    # 单元测试
-./scripts/release-check.sh    # 发版门禁：测试 → 打包 → 冒烟启动 → 健康检查
-./scripts/make-dmg.sh         # 打包分发用 DMG
+swift test                         # 单元测试
+./scripts/release-check.sh         # 发版门禁：测试 → universal 打包 → 冒烟启动 → 健康检查
+./scripts/make-app.sh universal    # 构建双架构 App
+./scripts/make-dmg.sh              # 打包分发用 DMG
 ```
 
 - SwiftUI + Swift Package Manager，无 Xcode 工程文件，零第三方依赖
 - 三个 target：`BirthCore`（扫描/控制/签名，UI 无关）、`BirthUI`（完整应用，可测试）、`Launager`（三行 main 的薄壳）
 - 每次发版前必须跑一遍 `release-check.sh`，任何一步红灯都不发布
 
-推送形如 `v0.0.2` 的标签会触发 `.github/workflows/release.yml`：分别构建 Intel 和 Apple Silicon 版本，导入临时钥匙串中的 Developer ID 证书，以 Hardened Runtime 和时间戳签名，公证并装订 DMG，随后上传 ZIP 与 DMG 到 GitHub Release。仓库需要配置以下 GitHub Actions Secrets：`APPLE_CERTIFICATE`（Base64 编码的 `.p12`）、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_TEAM_ID`、`APPLE_ID` 和 `APPLE_APP_SPECIFIC_PASSWORD`。
+推送形如 `v0.0.2` 的标签会触发 `.github/workflows/release.yml`：构建单一 universal 双架构版本，导入临时钥匙串中的 Developer ID 证书，以 Hardened Runtime 和时间戳签名，公证并装订 DMG，随后上传 universal ZIP 与 DMG 到 GitHub Release。仓库需要配置以下 GitHub Actions Secrets：`APPLE_CERTIFICATE`（Base64 编码的 `.p12`）、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_TEAM_ID`、`APPLE_ID` 和 `APPLE_APP_SPECIFIC_PASSWORD`。
 
 ## 说明与限制
 
